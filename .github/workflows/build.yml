@@ -1,11 +1,14 @@
-name: Byg Code Explorer
+name: Udgiv Code Explorer
 
+# Udgiver site/index.html på GitHub Pages ved hvert push.
+# Hvis secret'en P3_CUAS_TOKEN findes (token med læseadgang til det private P3_CUAS),
+# bygges siden også igen her fra den nyeste kode, også hver nat.
 on:
   push:
     branches: [main]
   schedule:
-    - cron: "0 3 * * *"   # hver nat kl. 03 UTC: henter nyeste P3_CUAS-kode
-  workflow_dispatch:       # knappen "Run workflow" under Actions
+    - cron: "0 3 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,7 +17,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -24,12 +27,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Byg siden
+      - name: Byg siden fra nyeste P3_CUAS-kode (kun med token)
+        env:
+          P3_CUAS_TOKEN: ${{ secrets.P3_CUAS_TOKEN }}
         run: |
-          mkdir -p site
-          python build_explorer.py --out site/index.html
-      - name: Advarsel om manglende beskrivelser
-        run: python build_explorer.py --out site/index.html --check || echo "::warning::Nogle funktioner mangler beskrivelse i descriptions.json"
+          if [ -n "$P3_CUAS_TOKEN" ]; then
+            python build_explorer.py --out site/index.html
+          else
+            echo "Ingen P3_CUAS_TOKEN: udgiver den committede site/index.html"
+          fi
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

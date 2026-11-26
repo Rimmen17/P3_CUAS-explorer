@@ -163,7 +163,7 @@
     },
     "ptz/code/credentials.py": {
       "summary": "Fælles indstillinger: kameraets adresse og login, billedstørrelse, styringsparametre og YOLO-model. Alle andre filer importerer herfra. Værdier for IP, bruger og password vises ikke på denne side.",
-      "notes": "Filen er committet til et offentligt GitHub-repo, så kameraets login er synligt for alle. Overvej at skifte password og flytte filen til .gitignore (den er allerede i .dockerignore)."
+      "notes": "Filen er committet til git, så kameraets login ligger i repoets historik for alle med adgang. Overvej at flytte den til .gitignore (den er allerede i .dockerignore) og dele den på anden vis."
     },
     "ptz/code/feedClass.py": {
       "summary": "Henter live-video fra kameraet i en baggrundstråd og holder altid det nyeste billede klar."

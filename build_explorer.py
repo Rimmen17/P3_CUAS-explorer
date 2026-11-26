@@ -3,7 +3,8 @@
 P3_CUAS Code Explorer - bygger en interaktiv HTML-side ud fra koden i repoet.
 
 Brug:
-    python build_explorer.py                 # henter/opdaterer repoet fra GitHub og bygger siden
+    python build_explorer.py                 # henter/opdaterer repoet fra GitHub og bygger site/index.html
+    python build_explorer.py --push          # bygger og udgiver hjemmesiden (commit + push)
     python build_explorer.py --repo STI      # bruger en lokal checkout i stedet
     python build_explorer.py --check         # fejler (exit 1) hvis noget mangler en beskrivelse
 
@@ -61,8 +62,24 @@ def find_repo(arg_repo, remote):
         git(["reset", "--hard", "origin/HEAD"], cache)
     else:
         print("Kloner", remote)
-        subprocess.run(["git", "clone", "--depth", "1", remote, str(cache)], check=True)
+        token = os.environ.get("P3_CUAS_TOKEN")  # bruges i GitHub Actions, fordi P3_CUAS er privat
+        url = remote.replace("https://", f"https://x-access-token:{token}@") if token else remote
+        subprocess.run(["git", "clone", "--depth", "1", "-q", url, str(cache)], check=True)
+        if token:
+            git(["remote", "set-url", "origin", remote], cache)
     return cache
+
+
+def publish(out):
+    """Committer og pusher den byggede side, så GitHub Pages viser den nye version."""
+    rel = os.path.relpath(out, HERE)
+    git(["add", rel, "descriptions.json"], HERE)
+    if not git(["status", "--porcelain", rel, "descriptions.json"], HERE):
+        print("Ingen ændringer at udgive.")
+        return
+    subprocess.run(["git", "commit", "-q", "-m", "Opdater siden"], cwd=HERE, check=True)
+    subprocess.run(["git", "push", "-q"], cwd=HERE, check=True)
+    print("Udgivet. Siden er opdateret om ca. 1 minut.")
 
 
 def slug(key, used):
@@ -540,7 +557,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--repo", help="lokal sti til repoet (ellers hentes det fra GitHub)")
     ap.add_argument("--remote", default=DEFAULT_REMOTE)
-    ap.add_argument("--out", default=str(HERE / "P3_CUAS_explorer.html"))
+    ap.add_argument("--out", default=str(HERE / "site" / "index.html"))
+    ap.add_argument("--push", action="store_true", help="commit og push siden (opdaterer hjemmesiden)")
     ap.add_argument("--desc", default=str(HERE / "descriptions.json"))
     ap.add_argument("--check", action="store_true", help="exit 1 hvis noget mangler beskrivelse")
     args = ap.parse_args()
@@ -621,6 +639,7 @@ def main():
     template = (HERE / "template.html").read_text(encoding="utf-8")
     page = template.replace("/*__EXPLORER_DATA__*/null", payload)
     out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("<!doctype html>\n<html lang=\"da\"><head><meta charset=\"utf-8\">"
                    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">"
                    "</head><body>\n" + page + "\n</body></html>\n", encoding="utf-8")
@@ -640,6 +659,8 @@ def main():
             print("    -", k)
     if args.check and missing:
         sys.exit(1)
+    if args.push:
+        publish(out)
 
 
 if __name__ == "__main__":
