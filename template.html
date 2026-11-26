@@ -77,7 +77,7 @@ main { min-width: 0; padding-block: 20px 60px; padding-left: max(16px, env(safe-
 .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
 .legend label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
 .map-scroll { overflow-x: auto; padding: 4px 8px 10px; }
-#map { display: block; }
+#map { display: block; width: 100%; height: auto; min-width: 820px; }
 #map .node { cursor: pointer; }
 #map .node rect { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; transition: opacity .15s; }
 #map .node.ext rect { stroke-dasharray: 4 3; fill: var(--bg); }
@@ -276,7 +276,7 @@ $("#tree").addEventListener("click", e => {
 });
 
 /* ---------- system map ---------- */
-const NW = 162, NH = 54, CX = 205, CY = 120, PAD = 22;
+const NW = 162, NH = 54, CX = NW + 150, CY = NH + 86, PAD = 22, CH = 6.4;
 const map = (() => {
   const nodes = D.diagram.map(n => Object.assign({}, n)), idx = {};
   nodes.forEach(n => idx[n.id] = n);
@@ -313,6 +313,10 @@ function drawMap() {
   const nodeLevel = current && map.idx[current];
   const clip = (c, t) => { const dx = t.x - c.x, dy = t.y - c.y; const s = Math.min((NW / 2 + 5) / Math.abs(dx || 1e-9), (NH / 2 + 5) / Math.abs(dy || 1e-9)); return { x: c.x + dx * s, y: c.y + dy * s }; };
   const near = new Set();
+  // etiketter må ikke ligge oven på nodes eller andre etiketter
+  const boxes = map.nodes.map(n => ({ x: PAD + n.x * CX - 4, y: PAD + n.y * CY - 4, w: NW + 8, h: NH + 8 }));
+  const hits = b => boxes.some(o => b.x < o.x + o.w && b.x + b.w > o.x && b.y < o.y + o.h && b.y + b.h > o.y);
+  const qpt = (s, c, e, t) => ({ x: (1 - t) * (1 - t) * s.x + 2 * (1 - t) * t * c.x + t * t * e.x, y: (1 - t) * (1 - t) * s.y + 2 * (1 - t) * t * c.y + t * t * e.y });
   let out = `<defs>${["muted", "k-route", "accent", "k-ext"].map(c => `<marker id="ah-${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--${c})"/></marker>`).join("")}</defs>`;
   map.edges.forEach(g => {
     if (g.life && !showLife) return;
@@ -321,8 +325,8 @@ function drawMap() {
     let off = 0;
     const rev = map.edges.find(o => o.a === g.b && o.b === g.a && (showLife || !o.life));
     if (rev) off += 16;
-    if (A.y === B.y && Math.abs(A.x - B.x) > 1) off += 44;
-    if (A.x === B.x && Math.abs(A.y - B.y) > 1) off += 70;
+    if (A.y === B.y && Math.abs(A.x - B.x) > 1) off += NH + 50;
+    if (A.x === B.x && Math.abs(A.y - B.y) > 1) off += NW + 50;
     const cx = (p0.x + p2.x) / 2 - dy / len * off, cy = (p0.y + p2.y) / 2 + dx / len * off;
     const s = clip(p0, { x: cx, y: cy }), e = clip(p2, { x: cx, y: cy });
     const kind = g.kinds.has("io") ? "io" : g.kinds.has("http") ? "http" : g.kinds.has("serves") ? "serves" : (g.kinds.size === 1 && g.kinds.has("creates")) ? "creates" : "call";
@@ -330,8 +334,16 @@ function drawMap() {
     const hot = current && (nodeLevel ? (g.a === current || g.b === current) : g.raw.some(r => sub.has(r.from) || sub.has(r.to)));
     if (hot) { near.add(g.a); near.add(g.b); }
     let labs = [...new Set(g.labels.filter(l => showLife || !l.life).map(l => l.lab))].join(", ");
-    if (labs.length > 30) labs = labs.slice(0, 28) + "…";
-    const lx = 0.25 * s.x + 0.5 * cx + 0.25 * e.x, ly = 0.25 * s.y + 0.5 * cy + 0.25 * e.y;
+    const maxLen = Math.max(12, Math.floor((CX - NW - 16) / CH));
+    if (labs.length > maxLen) labs = labs.slice(0, maxLen - 1) + "…";
+    const lw = labs.length * CH + 8, lh = 15;
+    let lx, ly, placed = null;
+    for (const t of [0.5, 0.38, 0.62, 0.28, 0.72, 0.2, 0.8]) {
+      const p = qpt(s, { x: cx, y: cy }, e, t), b = { x: p.x - lw / 2, y: p.y - lh / 2, w: lw, h: lh };
+      if (!hits(b)) { placed = b; lx = p.x; ly = p.y; break; }
+    }
+    if (!placed) { const p = qpt(s, { x: cx, y: cy }, e, 0.5); lx = p.x; ly = p.y; placed = { x: lx - lw / 2, y: ly - lh / 2, w: lw, h: lh }; }
+    boxes.push(placed);
     out += `<g class="edge e-${kind}${hot ? " hot" : ""}"><title>${esc(qual(g.a))} → ${esc(qual(g.b))}: ${esc([...new Set(g.labels.map(l => l.lab))].join(", "))}</title>`
       + `<path d="M${s.x.toFixed(1)} ${s.y.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${e.x.toFixed(1)} ${e.y.toFixed(1)}" marker-end="url(#ah-${col})"/>`
       + `<text x="${lx.toFixed(1)}" y="${(ly + 3.5).toFixed(1)}" text-anchor="middle">${esc(labs)}</text></g>`;
