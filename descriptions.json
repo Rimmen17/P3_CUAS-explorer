@@ -1,0 +1,414 @@
+{
+  "_om": "Forklaringer til Code Explorer. Nøglen er 'sti::Klasse.metode' (eller bare 'sti' for en fil). Felter: summary, params {navn: tekst}, returns, sends, notes, todo [liste]. Kør build_explorer.py igen efter ændringer. Nye funktioner får selv en tom skabelon her.",
+  "repo_name": "P3_CUAS",
+  "config_files": [
+    "credentials.py"
+  ],
+  "type_hints": {},
+  "overview": {
+    "title": "Sådan hænger systemet sammen",
+    "text": [
+      "Programmet starter i main.py. Det opretter fem objekter, og fire af dem kører i hver sin tråd: FeedRTSP henter video fra Axis-kameraet, DetectionModel kører YOLO på det nyeste billede, commandPTZ sender bevægelseskommandoer til kameraet, og GUIServer viser en webside på port 8080. TargetCalculator er ikke en tråd. main-løkken kalder den, hver gang YOLO har et nyt resultat.",
+      "Data flyder i en ring: kamera → FeedRTSP.read() → DetectionModel → main-løkken → TargetCalculator.calculate_command() → commandPTZ (henter med get_target()) → ptz.cgi → kamera. Ingen tråde venter på hinanden. Hver tråd henter bare den nyeste værdi under en lås og sammenligner tidsstemplet for at se, om den er ny.",
+      "Websiden (index.html) kan starte og stoppe en Recorder, der gemmer video (.mp4) og en log (.json) med boks og kommando for hvert billede."
+    ],
+    "status": [
+      "calculate_command() sender altid 0,0 (PANPID/TILTPID er pladsholdere), så kameraet bevæger sig ikke endnu.",
+      "Knapperne Auto/Manual og Stop camera ændrer kun et flag og en tæller i GUIServer. Ingen anden del af koden læser dem endnu.",
+      "Søgemønsteret i commandPTZ._search() er ikke lavet. Lige nu stopper den kun kameraet efter 1 s uden ny kommando.",
+      "Modellen er en testmodel til hænder (handsModel.pt), ikke droner."
+    ]
+  },
+  "diagram": {
+    "ext:camera_video": [
+      0,
+      0
+    ],
+    "ptz/code/feedClass.py::FeedRTSP": [
+      1,
+      0
+    ],
+    "ptz/code/yoloClass.py::DetectionModel": [
+      2,
+      0
+    ],
+    "ptz/code/main.py::main": [
+      3,
+      0
+    ],
+    "ext:camera_ptz": [
+      0,
+      1
+    ],
+    "ptz/code/controllerClass.py::commandPTZ": [
+      1,
+      1
+    ],
+    "ptz/code/targetClass.py::TargetCalculator": [
+      2,
+      1
+    ],
+    "ptz/code/credentials.py": [
+      3,
+      1
+    ],
+    "ext:disk": [
+      0,
+      2
+    ],
+    "ptz/code/recorderClass.py::Recorder": [
+      1,
+      2
+    ],
+    "ptz/code/guiClass.py::GUIServer": [
+      2,
+      2
+    ],
+    "ptz/code/static/index.html": [
+      3,
+      2
+    ]
+  },
+  "external_nodes": [
+    {
+      "id": "camera_video",
+      "label": "Axis Q6225-LE",
+      "sub": "video ud (RTSP)",
+      "summary": "PTZ-kameraet sender H.264-video over RTSP (TCP). Adressen og login kommer fra credentials.py.",
+      "links": [
+        {
+          "from": "ptz/code/feedClass.py::FeedRTSP.run",
+          "to": "self",
+          "kind": "io",
+          "label": "RTSP-stream"
+        }
+      ]
+    },
+    {
+      "id": "camera_ptz",
+      "label": "Axis Q6225-LE",
+      "sub": "styring ind (VAPIX)",
+      "summary": "Kameraet styres med HTTP GET til /axis-cgi/com/ptz.cgi med digest-login. Kommandoen continuouspantiltmove=pan,tilt sætter en hastighed, som kameraet holder, indtil der kommer en ny.",
+      "links": [
+        {
+          "from": "ptz/code/controllerClass.py::commandPTZ._send_command",
+          "to": "self",
+          "kind": "io",
+          "label": "HTTP ptz.cgi"
+        }
+      ]
+    },
+    {
+      "id": "disk",
+      "label": "Disk",
+      "sub": "/app/recordings",
+      "summary": "Optagelser gemmes i mappen recordings (den er i .gitignore). Hver optagelse giver to filer med samme tidsstempel som navn: en .mp4-video og en .json-log med én linje pr. billede.",
+      "links": [
+        {
+          "from": "ptz/code/recorderClass.py::Recorder.run",
+          "to": "self",
+          "kind": "io",
+          "label": "mp4 + json"
+        }
+      ]
+    }
+  ],
+  "symbols": {
+    "": {
+      "summary": "Gruppe 341's C-UAS-kode: et Axis PTZ-kamera, der skal finde og følge en drone med YOLO. Alt kører i én Docker-container med GPU (mappen ptz)."
+    },
+    "README.md": {
+      "summary": "Kort projektbeskrivelse."
+    },
+    ".gitignore": {
+      "summary": "Filer git skal ignorere: .env, .venv, __pycache__, logfiler, recordings/ og TobiasTest/."
+    },
+    "ptz": {
+      "summary": "Alt der skal til for at bygge og køre trackeren i Docker."
+    },
+    "ptz/.dockerignore": {
+      "summary": "Holder credentials.py, models/ og __pycache__ ude af Docker-imaget. De mountes i stedet ind via docker-compose."
+    },
+    "ptz/Dockerfile": {
+      "summary": "Bygger imaget på pytorch/pytorch:2.5.1-cuda12.4, installerer libgl1/libglib2.0 (kræves af OpenCV) og requirements.txt, og starter /app/code/main.py."
+    },
+    "ptz/docker-compose.yml": {
+      "summary": "Én service, tracker: bygger Dockerfile, åbner port 8080 (GUI), mounter hele ptz-mappen som /app (så koden kan ændres uden at bygge igen), giver adgang til alle NVIDIA-GPU'er og genstarter selv."
+    },
+    "ptz/requirements.txt": {
+      "summary": "Python-pakker: ultralytics (YOLO), requests (PTZ-kommandoer) og flask (GUI). OpenCV og torch kommer med i ultralytics og base-imaget."
+    },
+    "ptz/models": {
+      "summary": "YOLO-vægte. Mountes ind i containeren som /app/models."
+    },
+    "ptz/models/handsModel.pt": {
+      "summary": "Testmodel der finder hænder. Bruges indtil der er trænet en dronemodel. Stien står i credentials.MODEL."
+    },
+    "ptz/code": {
+      "summary": "Python-koden. main.py samler klasserne; hver fil har én klasse med én opgave."
+    },
+    "ptz/code/static": {
+      "summary": "Statiske filer til websiden."
+    },
+    "ptz/code/main.py": {
+      "summary": "Startpunktet. Opretter alle objekter og kører løkken, der sender nye YOLO-resultater videre til TargetCalculator."
+    },
+    "ptz/code/main.py::main": {
+      "summary": "Opretter FeedRTSP, DetectionModel, TargetCalculator, commandPTZ og GUIServer i den rækkefølge, de afhænger af hinanden. Derefter tjekker løkken hvert 10. ms, om YOLO har et nyt resultat (nyt det_id). Har den en boks, kaldes calculate_command(); er der ingen boks, kaldes target_lost(). Ved Ctrl+C stoppes alt i omvendt rækkefølge.",
+      "returns": "Intet. Kører indtil Ctrl+C.",
+      "notes": "commandPTZ får funktionen TARGET.get_target (uden parentes), ikke selve objektet. Den kan så selv hente den nyeste kommando, når den vil."
+    },
+    "ptz/code/main.py::__main__": {
+      "summary": "Kører main(), når filen startes direkte (som Dockerfile gør)."
+    },
+    "ptz/code/credentials.py": {
+      "summary": "Fælles indstillinger: kameraets adresse og login, billedstørrelse, styringsparametre og YOLO-model. Alle andre filer importerer herfra. Værdier for IP, bruger og password vises ikke på denne side.",
+      "notes": "Filen er committet til et offentligt GitHub-repo, så kameraets login er synligt for alle. Overvej at skifte password og flytte filen til .gitignore (den er allerede i .dockerignore)."
+    },
+    "ptz/code/feedClass.py": {
+      "summary": "Henter live-video fra kameraet i en baggrundstråd og holder altid det nyeste billede klar."
+    },
+    "ptz/code/feedClass.py::FeedRTSP": {
+      "summary": "Tråd der læser RTSP-streamen fra kameraet så hurtigt som muligt og kun gemmer det nyeste billede. Alle andre (YOLO, Recorder) henter billeder med read(). Mister den forbindelsen, prøver den igen hvert 2. sekund.",
+      "sends": "Det nyeste billede som numpy-array 1080×1920×3 (BGR, uint8, ca. 6,2 MB) plus tidsstemplet time.time() fra da det blev modtaget."
+    },
+    "ptz/code/feedClass.py::FeedRTSP.__init__": {
+      "summary": "Bygger RTSP-adressen ud fra IP, login og opløsning og starter tråden.",
+      "params": {
+        "ip": "Kameraets IP.",
+        "user": "Brugernavn til kameraet.",
+        "password": "Password til kameraet.",
+        "resolution": "Fx '1920x1080'. Sendes med i URL'en, så kameraet leverer den størrelse.",
+        "autostart": "Starter tråden med det samme, hvis True."
+      },
+      "returns": "Objektet. Tråden kører allerede."
+    },
+    "ptz/code/feedClass.py::FeedRTSP.run": {
+      "summary": "Trådens løkke. Åbner streamen med OpenCV/FFmpeg over TCP og læser billede efter billede. Hvert billede gemmes under låsen sammen med tidsstempel og en tæller. Kan streamen ikke åbnes, sættes self.error, og den venter 2 s og prøver igen.",
+      "returns": "Intet. Kører indtil stop()."
+    },
+    "ptz/code/feedClass.py::FeedRTSP.read": {
+      "summary": "Giver en kopi af det nyeste billede og dets tidsstempel. Blokerer aldrig ud over den korte lås. Kalderen kan sammenligne tidsstemplet med sidste gang for at se, om billedet er nyt.",
+      "returns": "(frame, stamp). Før det første billede: (None, 0.0)."
+    },
+    "ptz/code/feedClass.py::FeedRTSP.stop": {
+      "summary": "Stopper løkken og venter op til 3 s på tråden.",
+      "returns": "Intet."
+    },
+    "ptz/code/yoloClass.py": {
+      "summary": "Kører YOLO på hvert nyt billede fra feedet i sin egen tråd."
+    },
+    "ptz/code/yoloClass.py::DetectionModel": {
+      "summary": "Tråd der henter det nyeste billede fra FeedRTSP, kører YOLO på hele billedet og gemmer den boks med højest confidence. YOLO er langsommere end kameraet, så billeder springes over. Den tager altid det nyeste.",
+      "sends": "Via get_detection(): boks (x1, y1, x2, y2) i pixels eller None, et løbenummer der stiger for hvert behandlet billede, og billedets tidsstempel."
+    },
+    "ptz/code/yoloClass.py::DetectionModel.__init__": {
+      "summary": "Gemmer feedet, indlæser YOLO-modellen fra credentials.MODEL og starter tråden.",
+      "params": {
+        "feed": "FeedRTSP-objektet, som billeder hentes fra.",
+        "confidence": "Mindste confidence (0–1). Bokse under filtreres fra af YOLO. Standard 0.8.",
+        "autostart": "Starter tråden med det samme."
+      },
+      "returns": "Objektet."
+    },
+    "ptz/code/yoloClass.py::DetectionModel.run": {
+      "summary": "Trådens løkke. Henter billede med feed.read(). Er det samme billede som sidst, venter den 5 ms. Ellers køres model.predict(), den bedste boks vælges, og resultat, løbenummer og billedets tidsstempel gemmes under låsen.",
+      "returns": "Intet."
+    },
+    "ptz/code/yoloClass.py::DetectionModel._best_boxes": {
+      "summary": "Vælger den boks, YOLO er mest sikker på, blandt alle fundne.",
+      "params": {
+        "result": "Ét ultralytics Results-objekt."
+      },
+      "returns": "(x1, y1, x2, y2) som floats i pixels, eller None hvis intet blev fundet."
+    },
+    "ptz/code/yoloClass.py::DetectionModel.get_detection": {
+      "summary": "Giver det nyeste YOLO-resultat. Blokerer aldrig.",
+      "returns": "(boks eller None, det_id, stamp). det_id stiger med 1 for hvert billede YOLO har behandlet, også når der ikke blev fundet noget."
+    },
+    "ptz/code/yoloClass.py::DetectionModel.stop": {
+      "summary": "Stopper løkken og venter op til 3 s.",
+      "returns": "Intet."
+    },
+    "ptz/code/targetClass.py": {
+      "summary": "Omsætter en boks i billedet til en PTZ-kommando."
+    },
+    "ptz/code/targetClass.py::TargetCalculator": {
+      "summary": "Ikke en tråd. main kalder calculate_command() for hver ny boks og target_lost() når der ikke er nogen. Den seneste kommando gemmes, og commandPTZ og Recorder henter den med get_target().",
+      "sends": "En kommandostreng 'continuouspantiltmove=pan,tilt' og tidsstemplet for billedet den bygger på.",
+      "notes": "_history, max_accel, dt, target og current bliver sat, men ikke brugt endnu. De er tænkt til at glatte bevægelsen ud."
+    },
+    "ptz/code/targetClass.py::TargetCalculator.__init__": {
+      "summary": "Sætter startværdier. Startkommandoen er 0,0 (stå stille) med tidsstempel 0.",
+      "params": {
+        "max_accel": "Største hastighedsændring pr. sekund (fra credentials). Ikke brugt endnu.",
+        "rate": "Opdateringsfrekvens i Hz. dt = 1/rate. Ikke brugt endnu.",
+        "history": "Hvor mange tidligere målinger der gemmes. Ikke brugt endnu."
+      },
+      "returns": "Objektet."
+    },
+    "ptz/code/targetClass.py::TargetCalculator.get_target": {
+      "summary": "Giver den seneste kommando. Det er denne funktion, commandPTZ får med i main.",
+      "returns": "(kommando, stamp), fx ('continuouspantiltmove=0,0', 1732612345.12)."
+    },
+    "ptz/code/targetClass.py::TargetCalculator.calculate_command": {
+      "summary": "Skal regne pan- og tilt-hastighed ud fra hvor boksen ligger i forhold til billedets midte. Lige nu er PANPID og TILTPID 0, så kommandoen er altid 'stå stille'. Tidsstemplet sættes til billedets tidsstempel, så commandPTZ kan se, at der er kommet noget nyt.",
+      "params": {
+        "x1": "Boksens venstre kant (px).",
+        "y1": "Boksens øverste kant (px).",
+        "x2": "Boksens højre kant (px).",
+        "y2": "Boksens nederste kant (px).",
+        "_id": "YOLO's det_id. Ikke brugt.",
+        "_time_stamp": "Tidsstempel for billedet boksen kommer fra.",
+        "frame_width": "Billedbredde, standard 1920.",
+        "frame_height": "Billedhøjde, standard 1080."
+      },
+      "returns": "Intet. Resultatet gemmes i self.current_command.",
+      "todo": [
+        "Beregn fejl = boksens centrum − billedets centrum og lav en regulator (fx PID) til pan/tilt."
+      ]
+    },
+    "ptz/code/targetClass.py::TargetCalculator.target_lost": {
+      "summary": "Kaldes når YOLO ikke fandt noget. Sætter kommandoen til 0,0 med det nuværende tidspunkt, så commandPTZ sender stop.",
+      "returns": "Intet."
+    },
+    "ptz/code/controllerClass.py": {
+      "summary": "Sender kommandoer til kameraets PTZ-motor over HTTP."
+    },
+    "ptz/code/controllerClass.py::commandPTZ": {
+      "summary": "Tråd der hele tiden spørger TargetCalculator om den nyeste kommando. Er tidsstemplet nyt, sendes kommandoen til kameraet. Er det ikke, venter den 20 ms og kalder _search(), som stopper kameraet efter 1 s uden ny kommando.",
+      "sends": "HTTP GET til http://<kamera>/axis-cgi/com/ptz.cgi?<kommando> med digest-login og 0,5 s timeout."
+    },
+    "ptz/code/controllerClass.py::commandPTZ.__init__": {
+      "summary": "Gemmer funktionen der giver kommandoer, laver en requests-session med digest-login og starter tråden.",
+      "params": {
+        "get_target_func": "En funktion uden argumenter, der returnerer (kommando, stamp). I main er det TARGET.get_target.",
+        "autostart": "Starter tråden med det samme."
+      },
+      "returns": "Objektet."
+    },
+    "ptz/code/controllerClass.py::commandPTZ.run": {
+      "summary": "Trådens løkke. Henter (kommando, stamp). Samme stamp som sidst betyder intet nyt: vent 20 ms og kald _search(). Nyt stamp: send kommandoen og nulstil tiden for sidste kommando.",
+      "returns": "Intet."
+    },
+    "ptz/code/controllerClass.py::commandPTZ._send_command": {
+      "summary": "Sender self.command til kameraet. Fejl (timeout, forkert login) skrives i konsollen, så tråden ikke dør.",
+      "returns": "Kameraets svartekst, eller None ved fejl."
+    },
+    "ptz/code/controllerClass.py::commandPTZ._search": {
+      "summary": "Kaldes når der ikke er kommet ny kommando. Er der gået mere end 1 s siden sidste kommando, sendes 0,0 (stop), og der skrives 'searching..'. Selve søgemønsteret er ikke lavet.",
+      "returns": "Intet.",
+      "todo": [
+        "Lav et søgemønster (fx pan frem og tilbage i 0–12,2° tilt) når dronen er tabt."
+      ]
+    },
+    "ptz/code/controllerClass.py::commandPTZ.stop": {
+      "summary": "Stopper løkken, sender 0,0 til kameraet så det står stille, og venter op til 3 s.",
+      "returns": "Intet."
+    },
+    "ptz/code/guiClass.py": {
+      "summary": "Flask-webserver på port 8080 med knapper til optagelse, auto/manuel og stop."
+    },
+    "ptz/code/guiClass.py::GUIServer": {
+      "summary": "Tråd der kører en Flask-server. Den holder styr på, om der optages (self.rec), om manuel tilstand er slået til, og hvor mange gange Stop er trykket. Websiden viser kun det, serveren svarer, så tilstanden findes ét sted.",
+      "sends": "JSON med {recording, file, manual, stops} som svar på hver route."
+    },
+    "ptz/code/guiClass.py::GUIServer.__init__": {
+      "summary": "Gemmer feed, yolo og target (de skal bruges når en Recorder startes), opretter Flask-appen med static-mappen, registrerer routes og laver serveren.",
+      "params": {
+        "feed": "FeedRTSP. Er den None, kan der ikke optages.",
+        "yolo": "DetectionModel, til loggen.",
+        "target": "TargetCalculator, til loggen.",
+        "folder": "Hvor optagelser gemmes.",
+        "port": "HTTP-port, standard 8080.",
+        "autostart": "Starter tråden med det samme."
+      },
+      "returns": "Objektet."
+    },
+    "ptz/code/guiClass.py::GUIServer._routes": {
+      "summary": "Registrerer de fem URL'er websiden bruger. Funktionerne er defineret inde i metoden, så de kan bruge self.",
+      "returns": "Intet."
+    },
+    "ptz/code/guiClass.py::GUIServer._routes.page_index": {
+      "summary": "Sender static/index.html, når man åbner http://<pc>:8080/.",
+      "returns": "HTML-filen."
+    },
+    "ptz/code/guiClass.py::GUIServer._routes.state": {
+      "summary": "Giver den nuværende tilstand. Siden kalder den, når den åbnes.",
+      "returns": "JSON fra self.state()."
+    },
+    "ptz/code/guiClass.py::GUIServer._routes.record": {
+      "summary": "Slår optagelse til og fra. Kører der ingen, startes en ny Recorder. Kører der en, stoppes den. stop() kaldes uden for låsen, fordi det kan tage op til 3 s.",
+      "returns": "JSON med tilstand. HTTP 503 med en fejltekst, hvis der ikke er noget feed (GUI startet alene)."
+    },
+    "ptz/code/guiClass.py::GUIServer._routes.manual": {
+      "summary": "Skifter mellem Auto og Manual.",
+      "returns": "JSON med tilstand.",
+      "notes": "Flaget self.manual læses ikke af commandPTZ endnu, så knappen gør ikke noget ved kameraet."
+    },
+    "ptz/code/guiClass.py::GUIServer._routes.stop": {
+      "summary": "Tæller self.stops op med 1.",
+      "returns": "JSON med tilstand.",
+      "notes": "Ingen læser self.stops, så kameraet stopper ikke. Skal kobles til commandPTZ."
+    },
+    "ptz/code/guiClass.py::GUIServer.state": {
+      "summary": "Samler tilstanden i en dict under låsen.",
+      "returns": "{recording: bool, file: filnavn eller None, manual: bool, stops: int}"
+    },
+    "ptz/code/guiClass.py::GUIServer.run": {
+      "summary": "Trådens løkke: kører webserveren, indtil shutdown() kaldes.",
+      "returns": "Intet."
+    },
+    "ptz/code/guiClass.py::GUIServer.stop": {
+      "summary": "Stopper en igangværende optagelse (så filerne lukkes rigtigt), lukker serveren og venter på tråden.",
+      "returns": "Intet."
+    },
+    "ptz/code/guiClass.py::__main__": {
+      "summary": "Starter kun GUI'en uden kamera, så man kan teste siden lokalt på http://localhost:8080. Optag-knappen giver fejl 503, fordi der ikke er noget feed."
+    },
+    "ptz/code/recorderClass.py": {
+      "summary": "Gemmer video og en log over detektioner og kommandoer."
+    },
+    "ptz/code/recorderClass.py::Recorder": {
+      "summary": "Tråd der startes fra GUI'en. Hvert nyt billede fra feedet skrives til en .mp4, og der skrives en linje i en .json-log med YOLO-boks og PTZ-kommando på samme tidspunkt. Bruges til at måle forsinkelse og nøjagtighed bagefter.",
+      "sends": "Filer: <dato_tid>.mp4 og <dato_tid>.json. Hver loglinje: {frame, frame_stamp, box, det_id, det_stamp, command, cmd_stamp}."
+    },
+    "ptz/code/recorderClass.py::Recorder.__init__": {
+      "summary": "Laver mappen, finder filnavne ud fra klokken, åbner logfilen og starter tråden. Video-writeren laves først, når det første billede viser størrelsen.",
+      "params": {
+        "feed": "FeedRTSP, billeder.",
+        "yolo": "DetectionModel, boks til loggen.",
+        "target": "TargetCalculator, kommando til loggen.",
+        "folder": "Mappe til optagelser.",
+        "fps": "Billedhastighed der skrives i mp4-filen (25). Passer den ikke med kameraet, afspilles videoen for hurtigt eller langsomt.",
+        "autostart": "Starter tråden med det samme."
+      },
+      "returns": "Objektet."
+    },
+    "ptz/code/recorderClass.py::Recorder.run": {
+      "summary": "Trådens løkke. Nyt billede → skriv til video, hent get_detection() og get_target(), og skriv én JSON-linje. Loggen gemmes til disk for hver 50. billede.",
+      "returns": "Intet. Stopper selv, hvis video-writeren ikke kan åbnes."
+    },
+    "ptz/code/recorderClass.py::Recorder.stop": {
+      "summary": "Stopper tråden, lukker video og log rigtigt og skriver, hvor filerne ligger.",
+      "returns": "Intet."
+    },
+    "ptz/code/static/index.html": {
+      "summary": "Websiden med tre knapper. Siden har ingen egen tilstand: hvert tryk sender en POST til serveren og viser det svar, den får."
+    },
+    "ptz/code/static/index.html::send": {
+      "summary": "Sender en POST til den givne sti og viser svaret med show(). Svarer serveren ikke, vises en fejltekst.",
+      "params": {
+        "path": "Fx '/record'."
+      },
+      "returns": "Intet (async)."
+    },
+    "ptz/code/static/index.html::show": {
+      "summary": "Opdaterer knapperne ud fra serverens svar: teksten skifter (Record/Stop recording, Auto/Manual), og knappen farves, når den er slået til. Hele svaret vises som JSON nederst.",
+      "params": {
+        "s": "Tilstanden fra serveren: {recording, file, manual, stops, error?}."
+      },
+      "returns": "Intet."
+    }
+  }
+}

@@ -1,0 +1,542 @@
+<title>P3_CUAS Code Explorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: sticky header; file tree rail on the left, system map + detail panel on the right; stacks on phones. */
+:root {
+  --bg: #eef1f4; --panel: #ffffff; --ink: #16202b; --muted: #5a6877; --line: #d3dae2; --hover: #e4e9ef;
+  --accent: #a85f00; --accent-soft: #f7e8d2;
+  --k-class: #285d8f; --k-method: #2f7552; --k-route: #84489a; --k-config: #6c6a1c; --k-entry: #a6402c; --k-js: #8a6a00; --k-ext: #5f6b78; --k-file: #4b5866;
+  --warn: #b3261e; --warn-soft: #fbe6e4; --code-bg: #f6f8fa;
+  --f-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --header-h: 64px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d1217; --panel: #141b22; --ink: #e2e8ee; --muted: #94a2b0; --line: #26313c; --hover: #1c2630;
+  --accent: #f2a541; --accent-soft: #3a2a13;
+  --k-class: #6fa8dc; --k-method: #6cc49a; --k-route: #c792ea; --k-config: #c9c56a; --k-entry: #f0866e; --k-js: #e6c25a; --k-ext: #9aa7b4; --k-file: #a8b4c0;
+  --warn: #ff8a80; --warn-soft: #3b1d1b; --code-bg: #0f151b; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0d1217; --panel: #141b22; --ink: #e2e8ee; --muted: #94a2b0; --line: #26313c; --hover: #1c2630;
+  --accent: #f2a541; --accent-soft: #3a2a13;
+  --k-class: #6fa8dc; --k-method: #6cc49a; --k-route: #c792ea; --k-config: #c9c56a; --k-entry: #f0866e; --k-js: #e6c25a; --k-ext: #9aa7b4; --k-file: #a8b4c0;
+  --warn: #ff8a80; --warn-soft: #3b1d1b; --code-bg: #0f151b; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--f-body); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, pre, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line);
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.brand { display: flex; align-items: center; gap: 10px; cursor: pointer; background: none; border: 0; padding: 0; text-align: left; }
+.brand svg { flex: none; }
+.brand h1 { font: 600 1.35rem/1 var(--f-display); margin: 0; letter-spacing: 0.02em; }
+.brand small { display: block; font: 500 0.72rem/1.2 var(--f-body); color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 3px; }
+.meta { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.meta code { color: var(--ink); }
+.search { margin-left: auto; display: flex; gap: 8px; align-items: center; flex: 1 1 260px; max-width: 420px; }
+.search input { flex: 1; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+
+.shell { display: grid; grid-template-columns: 310px minmax(0, 1fr); align-items: start; }
+.rail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--header-h)); height: calc(100vh - var(--header-h) - env(safe-area-inset-top, 0px)); overflow: auto;
+  border-right: 1px solid var(--line); background: var(--panel); padding-block: 12px 40px; }
+.rail-head { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px; }
+.chip-btn { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 3px 10px; font-size: 0.78rem; cursor: pointer; }
+.chip-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.tree, .tree ul { list-style: none; margin: 0; padding: 0; }
+.tree ul { padding-left: 14px; margin-left: 13px; border-left: 1px solid var(--line); }
+.row { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: none; padding: 3px 10px 3px 6px; cursor: pointer; text-align: left; font-size: 0.88rem; border-radius: 4px; }
+.tree > li > .row { padding-left: 10px; }
+.row:hover { background: var(--hover); }
+.row.sel { background: var(--accent-soft); }
+.caret { width: 14px; flex: none; color: var(--muted); font-size: 0.7rem; text-align: center; transition: transform .12s; }
+.caret.open { transform: rotate(90deg); }
+.caret.none { visibility: hidden; }
+.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.row .name.mono { font-size: 0.82rem; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); flex: none; margin-left: auto; }
+
+.tag { flex: none; font: 600 0.62rem/1 var(--f-mono); letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 5px; border-radius: 3px; border: 1px solid currentColor; min-width: 30px; text-align: center; }
+.t-folder { color: var(--k-file); } .t-file { color: var(--k-file); } .t-class { color: var(--k-class); } .t-method, .t-function { color: var(--k-method); }
+.t-route { color: var(--k-route); } .t-config { color: var(--k-config); } .t-entry { color: var(--k-entry); } .t-jsfunc { color: var(--k-js); } .t-external { color: var(--k-ext); }
+
+main { min-width: 0; padding-block: 20px 60px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 22px; }
+@media (min-width: 861px) { main { padding-left: 28px; padding-right: max(28px, env(safe-area-inset-right, 0px)); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.map-head { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline; padding: 14px 18px 4px; }
+.map-head h2 { font: 600 1rem/1.2 var(--f-display); margin: 0; letter-spacing: 0.03em; text-transform: uppercase; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 0.78rem; align-items: center; }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
+.legend label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+.map-scroll { overflow-x: auto; padding: 4px 8px 10px; }
+#map { display: block; }
+#map .node { cursor: pointer; }
+#map .node rect { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; transition: opacity .15s; }
+#map .node.ext rect { stroke-dasharray: 4 3; fill: var(--bg); }
+#map .node:hover rect { stroke: var(--muted); }
+#map .node.sel rect { stroke: var(--accent); stroke-width: 2; fill: var(--accent-soft); }
+#map .node .nm { font: 600 12.5px var(--f-mono); fill: var(--ink); }
+#map .node .sb { font: 11px var(--f-body); fill: var(--muted); }
+#map .node .tg { font: 600 9px var(--f-mono); letter-spacing: 0.05em; }
+#map .edge path { fill: none; stroke-width: 1.5; transition: opacity .15s; }
+#map .edge text { font: 10.5px var(--f-mono); paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; }
+#map .e-call path { stroke: var(--muted); } #map .e-call text { fill: var(--muted); }
+#map .e-http path, #map .e-serves path { stroke: var(--k-route); } #map .e-http text, #map .e-serves text { fill: var(--k-route); }
+#map .e-io path { stroke: var(--accent); stroke-dasharray: 5 3; } #map .e-io text { fill: var(--accent); }
+#map .e-creates path { stroke: var(--k-ext); stroke-dasharray: 2 3; } #map .e-creates text { fill: var(--k-ext); }
+#map.focus .edge:not(.hot) { opacity: 0.12; }
+#map.focus .node:not(.sel):not(.near) { opacity: 0.4; }
+#map .edge.hot path { stroke-width: 2.4; }
+
+.detail { padding: 22px clamp(16px, 3vw, 30px) 28px; display: grid; gap: 18px; min-width: 0; }
+.crumbs { display: flex; flex-wrap: wrap; gap: 2px 6px; font-size: 0.8rem; color: var(--muted); }
+.crumbs button { border: 0; background: none; padding: 0; color: var(--muted); cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.crumbs button:hover { color: var(--ink); }
+.title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.title-row h2 { font: 600 clamp(1.4rem, 2.6vw, 1.85rem)/1.15 var(--f-mono); margin: 0; overflow-wrap: anywhere; letter-spacing: -0.01em; }
+.badge { font-size: 0.74rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.badge.warn { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+.badge.thread { border-color: var(--k-class); color: var(--k-class); }
+.badge.route { border-color: var(--k-route); color: var(--k-route); font-family: var(--f-mono); }
+.sig { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; overflow-x: auto; white-space: pre; }
+.summary { font-size: 1.02rem; max-width: 72ch; margin: 0; }
+.missing { border: 1px dashed var(--warn); background: var(--warn-soft); border-radius: 6px; padding: 10px 14px; font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.missing code { overflow-wrap: anywhere; }
+.copy { border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; cursor: pointer; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.box { border-top: 2px solid var(--ink); padding-top: 10px; min-width: 0; }
+.box h3 { font: 600 0.76rem/1.2 var(--f-body); text-transform: uppercase; letter-spacing: 0.09em; margin: 0 0 8px; color: var(--muted); }
+.box p { margin: 0 0 6px; }
+table.params { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+.params td { border-top: 1px solid var(--line); padding: 6px 8px 6px 0; vertical-align: top; }
+.params td:first-child { white-space: nowrap; font-family: var(--f-mono); font-size: 0.82rem; font-weight: 600; }
+.params .def { color: var(--muted); font-family: var(--f-mono); font-size: 0.78rem; display: block; font-weight: 400; }
+.ret code { display: inline-block; background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; margin: 0 4px 4px 0; overflow-wrap: anywhere; }
+.links { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.links li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.link { border: 0; background: none; padding: 2px 0; cursor: pointer; text-align: left; font-family: var(--f-mono); font-size: 0.84rem; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.link:hover { text-decoration-color: var(--accent); color: var(--accent); }
+.ek { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); white-space: nowrap; min-width: 84px; }
+.elabel { color: var(--muted); font-size: 0.8rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chips code { background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
+.note { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 8px 12px; border-radius: 0 6px 6px 0; max-width: 80ch; }
+.note.todo { border-left-color: var(--warn); background: var(--warn-soft); }
+.note b { display: block; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
+.note ul { margin: 0; padding-left: 18px; }
+.empty { color: var(--muted); font-size: 0.86rem; font-style: italic; }
+details.src { border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); min-width: 0; }
+details.src summary { cursor: pointer; padding: 8px 12px; font-size: 0.84rem; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+details.src summary span { color: var(--muted); }
+.code { display: grid; grid-template-columns: auto minmax(0, 1fr); border-top: 1px solid var(--line); max-height: 560px; overflow: auto; }
+.code pre { margin: 0; padding: 10px 12px; line-height: 1.5; font-size: 0.8rem; }
+.code .ln { color: var(--muted); text-align: right; user-select: none; border-right: 1px solid var(--line); opacity: 0.7; }
+.code .tx { overflow-x: visible; white-space: pre; }
+.h-c { color: var(--muted); font-style: italic; } .h-s { color: var(--k-method); } .h-k { color: var(--k-class); font-weight: 600; } .h-n { color: var(--k-entry); }
+.members { display: grid; gap: 0; }
+.members button { display: grid; grid-template-columns: auto minmax(0, 14rem) minmax(0, 1fr); gap: 10px; align-items: baseline; border: 0; border-top: 1px solid var(--line); background: none; padding: 7px 4px; cursor: pointer; text-align: left; }
+.members button:hover { background: var(--hover); }
+.members .m-n { font-family: var(--f-mono); font-size: 0.84rem; font-weight: 600; overflow-wrap: anywhere; }
+.members .m-s { color: var(--muted); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 26px; }
+.stats div { font-size: 0.8rem; color: var(--muted); }
+.stats b { display: block; font: 600 1.5rem/1.1 var(--f-display); color: var(--ink); font-variant-numeric: tabular-nums; }
+.ov h2 { font: 600 1.6rem/1.15 var(--f-display); margin: 0; text-wrap: balance; }
+.ov p { max-width: 75ch; margin: 0 0 10px; }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 80ch; }
+.steps code { background: var(--code-bg); border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+
+@media (max-width: 860px) {
+  :root { --header-h: 0px; }
+  .top { position: static; }
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; height: auto; max-height: 46vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  .search { margin-left: 0; max-width: none; }
+  .members button { grid-template-columns: auto minmax(0, 1fr); }
+  .members .m-s { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top" id="top">
+  <button class="brand" id="home" aria-label="Til overblik">
+    <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="10" fill="none" stroke="var(--accent)" stroke-width="1.6"/><circle cx="15" cy="15" r="2.2" fill="var(--accent)"/><path d="M15 1v7M15 22v7M1 15h7M22 15h7" stroke="var(--ink)" stroke-width="1.6"/></svg>
+    <span><h1 id="repo-name">P3_CUAS</h1><small>Code Explorer · Gruppe 341</small></span>
+  </button>
+  <div class="meta" id="meta"></div>
+  <div class="search"><input id="q" type="search" placeholder="Søg efter fil, klasse, funktion…" aria-label="Søg i koden"></div>
+</header>
+
+<div class="shell">
+  <nav class="rail" aria-label="Filtræ">
+    <div class="rail-head">
+      <button class="chip-btn" id="f-missing" aria-pressed="false">Mangler beskrivelse</button>
+      <button class="chip-btn" id="f-expand">Fold alt ud</button>
+    </div>
+    <ul class="tree" id="tree"></ul>
+  </nav>
+  <main>
+    <section class="panel" aria-label="Systemkort">
+      <div class="map-head">
+        <h2>Systemkort</h2>
+        <div class="legend">
+          <span><i style="border-color:var(--muted)"></i>kalder (pil peger på den der bliver kaldt)</span>
+          <span><i style="border-color:var(--k-route)"></i>HTTP / web</span>
+          <span><i style="border-color:var(--accent);border-top-style:dashed"></i>ud af programmet</span>
+          <label><input type="checkbox" id="show-life"> vis opret/stop</label>
+        </div>
+      </div>
+      <div class="map-scroll"><svg id="map" role="img" aria-label="Diagram over klasser og hvordan de kalder hinanden"></svg></div>
+    </section>
+    <section class="panel detail" id="detail" aria-live="polite"></section>
+  </main>
+</div>
+
+<script>
+const D = /*__EXPLORER_DATA__*/null;
+const S = D.symbols;
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const KIND = {
+  folder: ["dir", "Mappe"], file: ["fil", "Fil"], class: ["cls", "Klasse"], method: ["def", "Metode"], function: ["fn", "Funktion"],
+  route: ["url", "Flask-route"], config: ["cfg", "Config-værdi"], entry: ["run", "Startblok"], jsfunc: ["js", "JavaScript-funktion"], external: ["ext", "Uden for koden"]
+};
+const EDGE = { call: "kalder", creates: "opretter", thread: "tråd", http: "HTTP", serves: "sender side", config: "config", import: "importerer", io: "I/O" };
+const LIFE = new Set(["__init__", "start", "stop", "run", "join"]);
+const OUT = {}, INC = {};
+D.edges.forEach(e => { (OUT[e.from] = OUT[e.from] || []).push(e); (INC[e.to] = INC[e.to] || []).push(e); });
+let current = null, filterMissing = false, query = "";
+const open = new Set();
+
+function store(k, v) { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function ancestors(id) { const a = []; for (let p = S[id] && S[id].parent; p; p = S[p].parent) a.unshift(p); return a; }
+function subtree(id, acc = new Set()) { acc.add(id); (S[id].children || []).forEach(c => subtree(c, acc)); return acc; }
+function fileOf(s) { return s.file || (s.kind === "file" ? s.key : ""); }
+function qual(id) {
+  const s = S[id]; if (!s) return id;
+  if (s.kind === "route") return s.route.methods.join("|") + " " + s.route.path;
+  if (s.kind === "folder") return (s.key || s.name) + "/";
+  if (s.kind === "file" || s.kind === "external") return s.name;
+  const parts = [s.name];
+  for (let p = s.parent; p && S[p].kind !== "file"; p = S[p].parent) parts.unshift(S[p].name);
+  return parts.join(".") + (["method", "function", "jsfunc"].includes(s.kind) ? "()" : "");
+}
+function summaryOf(s) { return (s.doc && s.doc.summary) || ""; }
+function tag(kind) { return `<span class="tag t-${kind}">${KIND[kind][0]}</span>`; }
+function sortedChildren(s) {
+  const ch = (s.children || []).slice();
+  if (s.kind === "folder") ch.sort((a, b) => (S[a].kind !== "folder") - (S[b].kind !== "folder") || S[a].name.localeCompare(S[b].name));
+  return ch;
+}
+
+/* ---------- tree ---------- */
+function visibleSet() {
+  if (!query && !filterMissing) return null;
+  const q = query.toLowerCase(), vis = new Set();
+  Object.values(S).forEach(s => {
+    if (s.kind === "external") return;
+    const hitQ = !q || (s.name + " " + (s.key || "") + " " + summaryOf(s)).toLowerCase().includes(q);
+    const hitM = !filterMissing || s.missing;
+    if (hitQ && hitM) { vis.add(s.id); ancestors(s.id).forEach(a => vis.add(a)); }
+  });
+  return vis;
+}
+function renderTree() {
+  const vis = visibleSet();
+  const li = id => {
+    const s = S[id];
+    if (vis && !vis.has(id)) return "";
+    const kids = sortedChildren(s).filter(c => !vis || vis.has(c));
+    const isOpen = vis ? true : open.has(id);
+    const mono = !["folder", "file"].includes(s.kind);
+    const label = s.kind === "route" ? s.route.path : s.name;
+    return `<li><button class="row${current === id ? " sel" : ""}" data-id="${id}" title="${esc(qual(id))}">`
+      + `<span class="caret${kids.length ? (isOpen ? " open" : "") : " none"}" data-toggle="${id}">▶</span>`
+      + tag(s.kind) + `<span class="name${mono ? " mono" : ""}">${esc(label)}</span>${s.missing ? '<span class="dot" title="Mangler beskrivelse"></span>' : ""}</button>`
+      + (kids.length && isOpen ? `<ul>${kids.map(li).join("")}</ul>` : "") + "</li>";
+  };
+  const root = S[D.root];
+  $("#tree").innerHTML = li(D.root) || '<li class="empty" style="padding:8px 14px">Ingen match.</li>';
+}
+$("#tree").addEventListener("click", e => {
+  const t = e.target.closest("[data-toggle]");
+  if (t && !t.classList.contains("none") && !query && !filterMissing) {
+    const id = t.dataset.toggle; open.has(id) ? open.delete(id) : open.add(id); renderTree(); return;
+  }
+  const r = e.target.closest(".row"); if (r) go(r.dataset.id);
+});
+
+/* ---------- system map ---------- */
+const NW = 162, NH = 54, CX = 205, CY = 120, PAD = 22;
+const map = (() => {
+  const nodes = D.diagram.map(n => Object.assign({}, n)), idx = {};
+  nodes.forEach(n => idx[n.id] = n);
+  const covered = id => { for (let c = id; c; c = S[c] && S[c].parent) if (idx[c]) return c; return null; };
+  let ax = 0; const baseY = nodes.reduce((m, n) => Math.max(m, n.y), -1) + 1;
+  Object.values(S).forEach(s => {
+    const want = s.kind === "class" || (s.kind === "file" && /\.html?$/.test(s.name)) || (s.kind === "function" && S[s.parent].kind === "file" && OUT[s.id]);
+    if (want && !covered(s.id)) { const n = { id: s.id, x: ax++, y: baseY, auto: true }; nodes.push(n); idx[s.id] = n; }
+  });
+  const agg = {};
+  D.edges.forEach(e => {
+    if (e.kind === "import" || e.kind === "config") return;
+    const a = covered(e.from), b = covered(e.to);
+    if (!a || !b || a === b) return;
+    const k = a + ">" + b, g = agg[k] = agg[k] || { a, b, raw: [], labels: [], life: true, kinds: new Set() };
+    const t = S[e.to], life = e.kind === "creates" || LIFE.has(t.name);
+    g.raw.push(e); g.kinds.add(e.kind);
+    if (!life) g.life = false;
+    const lab = e.kind === "http" ? t.route.path : e.kind === "io" ? e.label : e.kind === "serves" ? "sender siden" : e.kind === "creates" ? "opretter" : t.name + "()";
+    g.labels.push({ lab, life });
+  });
+  return { nodes, idx, covered, edges: Object.values(agg) };
+})();
+
+function drawMap() {
+  const showLife = $("#show-life").checked;
+  const svg = $("#map");
+  const maxX = Math.max(...map.nodes.map(n => n.x)), maxY = Math.max(...map.nodes.map(n => n.y));
+  const W = PAD * 2 + maxX * CX + NW, H = PAD * 2 + maxY * CY + NH;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const pos = n => ({ x: PAD + n.x * CX + NW / 2, y: PAD + n.y * CY + NH / 2 });
+  const selNode = current ? map.covered(current) : null;
+  const sub = current ? subtree(current) : new Set();
+  const nodeLevel = current && map.idx[current];
+  const clip = (c, t) => { const dx = t.x - c.x, dy = t.y - c.y; const s = Math.min((NW / 2 + 5) / Math.abs(dx || 1e-9), (NH / 2 + 5) / Math.abs(dy || 1e-9)); return { x: c.x + dx * s, y: c.y + dy * s }; };
+  const near = new Set();
+  let out = `<defs>${["muted", "k-route", "accent", "k-ext"].map(c => `<marker id="ah-${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--${c})"/></marker>`).join("")}</defs>`;
+  map.edges.forEach(g => {
+    if (g.life && !showLife) return;
+    const A = map.idx[g.a], B = map.idx[g.b], p0 = pos(A), p2 = pos(B);
+    const dx = p2.x - p0.x, dy = p2.y - p0.y, len = Math.hypot(dx, dy) || 1;
+    let off = 0;
+    const rev = map.edges.find(o => o.a === g.b && o.b === g.a && (showLife || !o.life));
+    if (rev) off += 16;
+    if (A.y === B.y && Math.abs(A.x - B.x) > 1) off += 44;
+    if (A.x === B.x && Math.abs(A.y - B.y) > 1) off += 70;
+    const cx = (p0.x + p2.x) / 2 - dy / len * off, cy = (p0.y + p2.y) / 2 + dx / len * off;
+    const s = clip(p0, { x: cx, y: cy }), e = clip(p2, { x: cx, y: cy });
+    const kind = g.kinds.has("io") ? "io" : g.kinds.has("http") ? "http" : g.kinds.has("serves") ? "serves" : (g.kinds.size === 1 && g.kinds.has("creates")) ? "creates" : "call";
+    const col = { io: "accent", http: "k-route", serves: "k-route", creates: "k-ext", call: "muted" }[kind];
+    const hot = current && (nodeLevel ? (g.a === current || g.b === current) : g.raw.some(r => sub.has(r.from) || sub.has(r.to)));
+    if (hot) { near.add(g.a); near.add(g.b); }
+    let labs = [...new Set(g.labels.filter(l => showLife || !l.life).map(l => l.lab))].join(", ");
+    if (labs.length > 30) labs = labs.slice(0, 28) + "…";
+    const lx = 0.25 * s.x + 0.5 * cx + 0.25 * e.x, ly = 0.25 * s.y + 0.5 * cy + 0.25 * e.y;
+    out += `<g class="edge e-${kind}${hot ? " hot" : ""}"><title>${esc(qual(g.a))} → ${esc(qual(g.b))}: ${esc([...new Set(g.labels.map(l => l.lab))].join(", "))}</title>`
+      + `<path d="M${s.x.toFixed(1)} ${s.y.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${e.x.toFixed(1)} ${e.y.toFixed(1)}" marker-end="url(#ah-${col})"/>`
+      + `<text x="${lx.toFixed(1)}" y="${(ly + 3.5).toFixed(1)}" text-anchor="middle">${esc(labs)}</text></g>`;
+  });
+  map.nodes.forEach(n => {
+    const s = S[n.id], x = PAD + n.x * CX, y = PAD + n.y * CY;
+    const subl = s.kind === "external" ? s.sub : s.kind === "class" ? (s.thread ? "tråd · " : "") + (s.file || "").split("/").pop() : s.kind === "file" ? (s.ext === ".py" ? "config" : "webside") : (s.file || "").split("/").pop();
+    const cls = ["node", s.kind === "external" ? "ext" : "", selNode === n.id ? "sel" : "", near.has(n.id) ? "near" : ""].join(" ");
+    let nm = s.kind === "function" ? s.name + "()" : s.name; if (nm.length > 19) nm = nm.slice(0, 18) + "…";
+    out += `<g class="${cls}" data-id="${n.id}" tabindex="0" role="button" aria-label="${esc(qual(n.id))}"><rect x="${x}" y="${y}" width="${NW}" height="${NH}" rx="6"/>`
+      + `<text class="tg" x="${x + 10}" y="${y + 15}" fill="var(--${{ class: "k-class", function: "k-method", external: "k-ext", file: "k-file" }[s.kind] || "k-file"})">${KIND[s.kind][0].toUpperCase()}</text>`
+      + `<text class="nm" x="${x + 10}" y="${y + 31}">${esc(nm)}</text><text class="sb" x="${x + 10}" y="${y + 46}">${esc(subl)}</text></g>`;
+  });
+  svg.innerHTML = out;
+  svg.classList.toggle("focus", !!selNode);
+}
+$("#map").addEventListener("click", e => { const n = e.target.closest(".node"); if (n) go(n.dataset.id); });
+$("#map").addEventListener("keydown", e => { const n = e.target.closest(".node"); if (n && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); go(n.dataset.id); } });
+$("#show-life").addEventListener("change", () => { store("cx-life", $("#show-life").checked ? "1" : "0"); drawMap(); });
+
+/* ---------- detail ---------- */
+function highlight(src, ext) {
+  const py = ext === ".py", js = ext === ".js" || ext === ".html";
+  if (!py && !js) return esc(src);
+  const kw = py ? "def|class|return|if|else|elif|while|for|in|try|except|finally|with|as|import|from|None|True|False|self|async|await|not|and|or|is|pass|continue|break|lambda|raise|global"
+                : "function|async|await|const|let|var|return|if|else|for|while|try|catch|new|true|false|null|document";
+  const re = new RegExp((py ? "(#.*$)" : "(\\/\\/.*$)") + "|(\"\"\"[\\s\\S]*?\"\"\"|'(?:\\\\.|[^'\\\\\\n])*'|\"(?:\\\\.|[^\"\\\\\\n])*\"" + (js ? "|`(?:\\\\.|[^`\\\\])*`" : "") + ")|\\b(" + kw + ")\\b|\\b(\\d+(?:\\.\\d+)?)\\b", "gm");
+  let out = "", last = 0, m;
+  while ((m = re.exec(src))) {
+    out += esc(src.slice(last, m.index));
+    const c = m[1] ? "h-c" : m[2] ? "h-s" : m[3] ? "h-k" : "h-n";
+    out += `<span class="${c}">${esc(m[0])}</span>`;
+    last = re.lastIndex;
+  }
+  return out + esc(src.slice(last));
+}
+function sourceBlock(s) {
+  if (!s.source) return "";
+  const f = fileOf(s), ext = (f.match(/\.[a-z]+$/i) || [""])[0].toLowerCase();
+  const lines = s.source.split("\n"), start = s.line || 1;
+  const end = start + lines.length - 1;
+  const gh = D.meta.web && D.meta.commit ? `${D.meta.web}/blob/${D.meta.commit}/${f}${s.kind === "file" ? "" : `#L${start}-L${end}`}` : "";
+  const openIt = s.kind !== "file" && s.kind !== "class" && lines.length <= 40;
+  return `<details class="src"${openIt ? " open" : ""}><summary><b>Kildekode</b><span class="mono">${esc(f)}:${start}–${end}</span>${gh ? `<a href="${gh}" target="_blank" rel="noopener">Åbn på GitHub ↗</a>` : ""}</summary>`
+    + `<div class="code"><pre class="ln">${lines.map((_, i) => start + i).join("\n")}</pre><pre class="tx">${highlight(s.source, ext)}</pre></div></details>`;
+}
+function linkBtn(id, text) { return `<button class="link" data-go="${id}">${esc(text || qual(id))}</button>`; }
+function edgeList(edges, dir) {
+  if (!edges.length) return '<p class="empty">Ingen.</p>';
+  const seen = new Set();
+  return "<ul class=\"links\">" + edges.filter(e => { const k = e.kind + (dir === "out" ? e.to : e.from) + e.label; if (seen.has(k)) return false; seen.add(k); return true; })
+    .map(e => {
+      const other = dir === "out" ? e.to : e.from, o = S[other];
+      const where = o.kind !== "external" && fileOf(o) && fileOf(o) !== fileOf(S[current]) ? ` <span class="elabel">${esc(fileOf(o).split("/").pop())}</span>` : "";
+      const lab = ["thread", "http", "io", "serves"].includes(e.kind) && e.label ? ` <span class="elabel">${esc(e.label)}</span>` : "";
+      const via = dir === "out" && e.from !== current ? ` <span class="elabel">fra ${esc(qual(e.from))}</span>` : dir === "in" && e.to !== current ? ` <span class="elabel">→ ${esc(qual(e.to))}</span>` : "";
+      return `<li><span class="ek">${EDGE[e.kind] || e.kind}</span><span>${linkBtn(other)}${where}${lab}${via}</span></li>`;
+    }).join("") + "</ul>";
+}
+function copyKey(btn, text) {
+  const done = () => { btn.textContent = "Kopieret"; setTimeout(() => btn.textContent = "Kopiér nøgle", 1400); };
+  try { navigator.clipboard.writeText(text).then(done, () => selectText(btn)); } catch (e) { selectText(btn); }
+}
+function selectText(btn) { const c = btn.previousElementSibling; const r = document.createRange(); r.selectNodeContents(c); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+
+function render(id) {
+  const s = S[id];
+  if (!s || id === D.root) return renderOverview();
+  const d = s.doc || {};
+  const sub = subtree(id);
+  const outE = [], inE = [];
+  sub.forEach(x => { (OUT[x] || []).forEach(e => { if (!sub.has(e.to)) outE.push(e); }); (INC[x] || []).forEach(e => { if (!sub.has(e.from)) inE.push(e); }); });
+  const cfgOut = outE.filter(e => e.kind === "config"), callOut = outE.filter(e => e.kind !== "config" && e.kind !== "import");
+  const impOut = outE.filter(e => e.kind === "import"), impIn = inE.filter(e => e.kind === "import");
+  const cfgIn = inE.filter(e => e.kind === "config"), callIn = inE.filter(e => e.kind !== "config" && e.kind !== "import");
+
+  const badges = [];
+  badges.push(`<span class="badge">${KIND[s.kind][1]}</span>`);
+  if (s.thread) badges.push('<span class="badge thread">egen tråd (threading.Thread)</span>');
+  if (s.route) badges.push(`<span class="badge route">${esc(s.route.methods.join(" | "))} ${esc(s.route.path)}</span>`);
+  if (s.private) badges.push('<span class="badge">intern (starter med _)</span>');
+  if (s.kind === "config" && s.unused) badges.push('<span class="badge warn">bruges ikke i koden endnu</span>');
+  if (s.missing) badges.push('<span class="badge warn">mangler beskrivelse</span>');
+  if (s.bases && s.bases.length) badges.push(`<span class="badge mono">arver ${esc(s.bases.join(", "))}</span>`);
+
+  let h = `<div class="crumbs">${ancestors(id).map(a => `<button data-go="${a}">${esc(S[a].name || "/")}</button>`).join("<span>/</span>")}</div>`;
+  h += `<div class="title-row">${tag(s.kind)}<h2>${esc(s.kind === "route" ? s.route.path : s.name)}</h2>${badges.join("")}</div>`;
+  if (s.signature) h += `<div class="sig mono">${esc(s.signature)}</div>`;
+  if (s.kind === "config") h += `<div class="sig mono">${esc(s.name)} = ${esc(s.value)}${s.comment ? "   # " + esc(s.comment) : ""}</div>`;
+  if (summaryOf(s)) h += `<p class="summary">${esc(d.summary)}</p>`;
+  else if (s.kind === "config" && s.comment) h += `<p class="summary">${esc(s.comment)}</p>`;
+  else {
+    const auto = [s.docstring, (s.comments || []).join(" "), s.inline_comment].filter(Boolean).join(" ");
+    if (auto) h += `<p class="summary">${esc(auto)} <span class="elabel">(kommentar fra koden)</span></p>`;
+  }
+  if (s.missing) h += `<div class="missing"><span>Ingen forklaring endnu. Skriv den i <code>descriptions.json</code> under nøglen</span><code>${esc(s.key)}</code><button class="copy" data-copy="${esc(s.key)}">Kopiér nøgle</button></div>`;
+  if (s.error) h += `<div class="note todo"><b>Kunne ikke læses</b>${esc(s.error)}</div>`;
+
+  // modtager / sender
+  let params = s.params, recvTitle = "Modtager";
+  if (s.kind === "class") {
+    const init = (s.children || []).find(c => S[c].name === "__init__");
+    if (init) { params = S[init].params; recvTitle = "Modtager ved oprettelse"; }
+  }
+  const pdoc = (s.kind === "class" ? ((S[(s.children || []).find(c => S[c].name === "__init__")] || {}).doc || {}).params : d.params) || {};
+  if (params || d.receives || s.returns || d.returns || d.sends) {
+    let recv = "";
+    if (params && params.length) recv += `<table class="params">${params.map(p => `<tr><td>${esc(p.name)}${p.default ? `<span class="def">= ${esc(p.default)}</span>` : ""}</td><td>${esc(pdoc[p.name] || "")}</td></tr>`).join("")}</table>`;
+    else if (params) recv += '<p class="empty">Ingen argumenter.</p>';
+    if (d.receives) recv += `<p>${esc(d.receives)}</p>`;
+    let send = "";
+    if (d.sends) send += `<p>${esc(d.sends)}</p>`;
+    if (s.returns && s.returns.length) send += `<div class="ret">${s.returns.map(r => `<code>return ${esc(r)}</code>`).join("")}</div>`;
+    if (d.returns) send += `<p>${esc(d.returns)}</p>`;
+    if (!send) send = s.kind === "class" ? '<p class="empty">Se metoderne nedenfor.</p>' : '<p class="empty">Returnerer intet.</p>';
+    h += `<div class="cols"><div class="box"><h3>${recvTitle}</h3>${recv || '<p class="empty">Ingen argumenter.</p>'}</div><div class="box"><h3>Sender / returnerer</h3>${send}</div></div>`;
+  }
+  if (s.buttons && s.buttons.length) {
+    h += `<div class="box"><h3>Knapper på siden</h3><table class="params">${s.buttons.map(b => `<tr><td>${esc(b.label)}</td><td>${esc(b.handler)}('${esc(b.route)}') → ${D.edges.some(e => e.from === id && S[e.to].route && S[e.to].route.path === b.route) ? linkBtn(D.edges.find(e => e.from === id && S[e.to].route && S[e.to].route.path === b.route).to) : esc(b.route)}</td></tr>`).join("")}</table></div>`;
+  }
+
+  // forbindelser
+  const conn = [];
+  conn.push(`<div class="box"><h3>${s.kind === "class" || s.kind === "file" ? "Bruger andre dele" : "Kalder / bruger"}</h3>${edgeList(callOut, "out")}</div>`);
+  conn.push(`<div class="box"><h3>Bliver brugt af</h3>${edgeList(s.kind === "config" ? cfgIn : callIn, "in")}</div>`);
+  h += `<div class="cols">${conn.join("")}</div>`;
+  const extra = [];
+  if (cfgOut.length) extra.push(`<div class="box"><h3>Indstillinger fra credentials</h3><div class="chips">${[...new Set(cfgOut.map(e => e.to))].map(c => `<button class="link" data-go="${c}">${esc(S[c].name)}</button>`).join(" ")}</div></div>`);
+  const exts = [...new Set([...sub].flatMap(x => S[x].externals || []))];
+  if (exts.length) extra.push(`<div class="box"><h3>Biblioteker og eksterne kald</h3><div class="chips">${exts.map(x => `<code>${esc(x)}</code>`).join("")}</div></div>`);
+  if (s.kind === "file" && (impOut.length || impIn.length)) extra.push(`<div class="box"><h3>Imports</h3>${impOut.length ? `<p class="elabel">importerer fra</p>${edgeList(impOut, "out")}` : ""}${impIn.length ? `<p class="elabel">importeres af</p>${edgeList(impIn, "in")}` : ""}</div>`);
+  if (extra.length) h += `<div class="cols">${extra.join("")}</div>`;
+
+  if (d.notes) h += `<div class="note"><b>Bemærk</b>${esc(d.notes)}</div>`;
+  if (d.todo && d.todo.length) h += `<div class="note todo"><b>Mangler i koden</b><ul>${d.todo.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
+
+  const kids = sortedChildren(s);
+  if (kids.length) {
+    const title = { folder: "Indhold", file: "I filen", class: "Metoder", method: "Indlejrede funktioner" }[s.kind] || "Indhold";
+    h += `<div class="box"><h3>${title}</h3><div class="members">${kids.map(c => `<button data-go="${c}">${tag(S[c].kind)}<span class="m-n">${esc(S[c].kind === "route" ? S[c].route.path : S[c].name)}</span><span class="m-s">${esc(summaryOf(S[c]) || (S[c].kind === "config" ? S[c].value : "") || (S[c].kind === "file" ? fmtSize(S[c].size) : ""))}</span></button>`).join("")}</div></div>`;
+  }
+  if (s.kind === "file" && !s.text) h += `<p class="empty">Binær fil, ${fmtSize(s.size)}. Indholdet vises ikke.</p>`;
+  h += sourceBlock(s);
+  $("#detail").innerHTML = h;
+}
+function fmtSize(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : b > 1024 ? Math.round(b / 1024) + " KB" : b + " B"; }
+
+function renderOverview() {
+  const ov = D.meta.overview || {};
+  const all = Object.values(S), n = k => all.filter(s => s.kind === k).length;
+  let h = `<div class="ov"><h2>${esc(ov.title || "Overblik")}</h2></div>`;
+  if (S[D.root].doc && S[D.root].doc.summary) h += `<p class="summary">${esc(S[D.root].doc.summary)}</p>`;
+  h += `<div class="stats"><div><b>${n("file")}</b>filer</div><div><b>${n("class")}</b>klasser</div><div><b>${all.filter(s => s.thread).length}</b>tråde</div><div><b>${n("method") + n("function")}</b>metoder og funktioner</div><div><b>${n("route")}</b>web-routes</div><div><b>${D.meta.missing.length}</b>mangler beskrivelse</div></div>`;
+  h += `<div class="ov">${(ov.text || []).map(p => `<p>${esc(p)}</p>`).join("")}</div>`;
+  if (ov.status && ov.status.length) h += `<div class="note todo"><b>Ikke lavet endnu</b><ul>${ov.status.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
+  h += `<div class="cols"><div class="box"><h3>Klasser</h3><div class="members">${all.filter(s => s.kind === "class" || (s.kind === "function" && S[s.parent].kind === "file")).map(s => `<button data-go="${s.id}">${tag(s.kind)}<span class="m-n">${esc(s.name)}</span><span class="m-s">${esc(summaryOf(s))}</span></button>`).join("")}</div></div>`;
+  h += `<div class="box"><h3>Sådan opdaterer du siden</h3><ol class="steps">
+    <li>Kør <code>python build_explorer.py</code> i mappen <code>code_explorer</code>. Scriptet henter den nyeste kode fra GitHub og bygger siden igen.</li>
+    <li>Nye klasser og funktioner kommer selv med i træet, med parametre, return-værdier og forbindelser.</li>
+    <li>Nye ting får en tom skabelon i <code>descriptions.json</code> og en rød prik her. Udfyld <code>summary</code> og kør scriptet igen.</li>
+    <li>Ny klasse på systemkortet: tilføj nøglen og en plads <code>[kolonne, række]</code> under <code>diagram</code>.</li></ol></div></div>`;
+  const miss = D.meta.missing.filter(id => S[id]), stale = D.meta.stale || [];
+  if (miss.length || stale.length) {
+    h += `<div class="cols">`;
+    if (miss.length) h += `<div class="box"><h3>Mangler beskrivelse</h3><ul class="links">${miss.map(id => `<li><span class="ek">${KIND[S[id].kind][1]}</span><span>${linkBtn(id)}</span></li>`).join("")}</ul></div>`;
+    if (stale.length) h += `<div class="box"><h3>Beskrivelser uden kode</h3><p class="elabel">Koden er slettet eller omdøbt. Ret eller fjern nøglen i descriptions.json.</p><div class="chips">${stale.map(k => `<code>${esc(k)}</code>`).join("")}</div></div>`;
+    h += `</div>`;
+  }
+  $("#detail").innerHTML = h;
+}
+
+$("#detail").addEventListener("click", e => {
+  const c = e.target.closest("[data-copy]"); if (c) { copyKey(c, c.dataset.copy); return; }
+  const g = e.target.closest("[data-go]"); if (g) go(g.dataset.go);
+});
+
+/* ---------- navigation ---------- */
+function go(id) { if (location.hash.slice(1) === id) select(id); else location.hash = id; }
+function select(id) {
+  current = S[id] && id !== D.root ? id : null;
+  if (current) ancestors(current).forEach(a => open.add(a));
+  renderTree(); drawMap(); render(current || D.root);
+  const row = document.querySelector(`.row[data-id="${current}"]`);
+  if (row) row.scrollIntoView({ block: "nearest" });
+}
+window.addEventListener("hashchange", () => select(location.hash.slice(1)));
+$("#home").addEventListener("click", () => { history.replaceState(null, "", location.pathname + location.search); select(null); });
+$("#q").addEventListener("input", e => { query = e.target.value.trim(); renderTree(); });
+$("#f-missing").addEventListener("click", e => { filterMissing = !filterMissing; e.target.setAttribute("aria-pressed", filterMissing); renderTree(); });
+$("#f-expand").addEventListener("click", e => {
+  const all = Object.values(S).filter(s => s.children && s.children.length && s.kind !== "external");
+  const allOpen = all.every(s => open.has(s.id));
+  all.forEach(s => allOpen ? open.delete(s.id) : open.add(s.id));
+  if (allOpen) open.add(D.root);
+  e.target.textContent = allOpen ? "Fold alt ud" : "Fold sammen";
+  renderTree();
+});
+
+/* ---------- start ---------- */
+$("#repo-name").textContent = D.meta.repo_name;
+const fmtDate = s => { try { return new Date(s).toLocaleString("da-DK", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return s; } };
+$("#meta").innerHTML = (D.meta.commit ? `commit <code>${esc(D.meta.commit.slice(0, 7))}</code> · ${esc(fmtDate(D.meta.commit_date))}` : "") + ` · bygget ${esc(fmtDate(D.meta.built))}`
+  + (D.meta.web ? ` · <a href="${esc(D.meta.web)}" target="_blank" rel="noopener">GitHub ↗</a>` : "");
+$("#show-life").checked = load("cx-life") === "1";
+open.add(D.root);
+Object.values(S).forEach(s => { if (s.kind === "folder") open.add(s.id); });
+select(location.hash.slice(1));
+</script>
